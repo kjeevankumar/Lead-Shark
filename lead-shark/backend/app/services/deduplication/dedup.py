@@ -22,24 +22,24 @@ def normalize_name(name: str) -> str:
         return ""
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
-def is_duplicate_lead(
+def find_duplicate_lead(
     db: Session,
     email: str,
     domain: Optional[str] = None,
     company_name: Optional[str] = None
-) -> Tuple[bool, str]:
+) -> Tuple[bool, str, Optional[Lead]]:
     """
     Checks if a lead or company already exists in the database.
-    Returns (is_duplicate: bool, reason: str)
+    Returns (is_duplicate: bool, reason: str, existing_lead: Optional[Lead])
     """
     norm_email = normalize_email(email)
     if not norm_email:
-        return True, "Empty or invalid email"
+        return True, "Empty or invalid email", None
         
     # 1. Check normalized email in leads table
     existing_lead = db.query(Lead).filter(Lead.email == norm_email).first()
     if existing_lead:
-        return True, f"Lead with email {norm_email} already exists (ID: {existing_lead.id})"
+        return True, f"Lead with email {norm_email} already exists (Lead ID: {existing_lead.id})", existing_lead
         
     # 2. Check company domain if given
     if domain:
@@ -53,6 +53,18 @@ def is_duplicate_lead(
                     Lead.email == norm_email
                 ).first()
                 if lead_in_company:
-                    return True, f"Lead with email {norm_email} exists for domain {norm_dom}"
+                    return True, f"Lead with email {norm_email} exists for domain {norm_dom} (Lead ID: {lead_in_company.id})", lead_in_company
                     
-    return False, ""
+    return False, "", None
+
+def is_duplicate_lead(
+    db: Session,
+    email: str,
+    domain: Optional[str] = None,
+    company_name: Optional[str] = None
+) -> Tuple[bool, str]:
+    """
+    Backward-compatible wrapper returning (is_duplicate: bool, reason: str).
+    """
+    is_dup, reason, _ = find_duplicate_lead(db, email, domain, company_name)
+    return is_dup, reason

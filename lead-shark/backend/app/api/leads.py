@@ -24,36 +24,38 @@ def list_leads(
     region: Optional[str] = None,
     verification_status: Optional[str] = None,
     source_type: Optional[str] = None,
-    status_filter: Optional[str] = Query(None, alias="status"),
+    status: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Lead)
+    query = db.query(Lead).outerjoin(Company, Lead.company_id == Company.id)
     
     if search:
         search_pattern = f"%{search.strip()}%"
         query = query.filter(
             (Lead.name.ilike(search_pattern)) | 
             (Lead.email.ilike(search_pattern)) |
-            (Lead.title.ilike(search_pattern))
+            (Lead.title.ilike(search_pattern)) |
+            (Company.name.ilike(search_pattern)) |
+            (Company.domain.ilike(search_pattern))
         )
         
-    if sector and sector != "All":
+    if sector and sector != "All" and isinstance(sector, str):
         query = query.filter(Lead.sector == sector)
         
-    if region and region != "All":
+    if region and region != "All" and isinstance(region, str):
         query = query.filter(Lead.region == region)
         
-    if verification_status and verification_status != "All":
+    if verification_status and verification_status != "All" and isinstance(verification_status, str):
         query = query.filter(Lead.email_status == verification_status)
         
-    if source_type and source_type != "All":
+    if source_type and source_type != "All" and isinstance(source_type, str):
         query = query.filter(Lead.source_type == source_type)
         
-    if status_filter and status_filter != "All":
-        query = query.filter(Lead.status == status_filter)
+    if status and status != "All" and isinstance(status, str):
+        query = query.filter(Lead.status == status)
         
     leads = query.order_by(Lead.created_at.desc()).offset(skip).limit(limit).all()
     return leads

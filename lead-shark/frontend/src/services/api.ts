@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { 
-  User, Lead, DiscoveryJob, Campaign, SuppressionRecord, 
+  User, Lead, DiscoveryJob, DiscoveryResultItem, Campaign, SuppressionRecord, 
   AuditLogItem, OverviewStatistics, CampaignAnalyticsItem, UserRole 
 } from '../types';
 
@@ -68,6 +68,11 @@ export const api = {
     schedule?: string;
   }): Promise<DiscoveryJob> => {
     const res = await client.post('/api/discovery/jobs', data);
+    return res.data;
+  },
+
+  getDiscoveryJobResults: async (jobId: string): Promise<DiscoveryResultItem[]> => {
+    const res = await client.get(`/api/discovery/jobs/${jobId}/results`);
     return res.data;
   },
 

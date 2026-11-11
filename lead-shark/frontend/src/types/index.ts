@@ -65,6 +65,22 @@ export interface DiscoveryJob {
   created_at: string;
 }
 
+export interface DiscoveryResultItem {
+  id: string;
+  discovery_job_id: string;
+  lead_id?: string;
+  company_name?: string;
+  domain?: string;
+  website?: string;
+  email?: string;
+  contact_name?: string;
+  title?: string;
+  source_url?: string;
+  result_status: 'new' | 'duplicate' | 'rejected' | 'failed';
+  duplicate_reason?: string;
+  created_at: string;
+}
+
 export interface CampaignStep {
   step_no: number;
   delay_days: number;

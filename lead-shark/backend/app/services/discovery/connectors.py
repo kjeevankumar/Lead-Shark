@@ -144,6 +144,129 @@ DEMO_DISCOVERY_DATABASE = [
     }
 ]
 
+AMAZON_SYNTHETIC_DEMO_LEADS = [
+    {
+        "name": "Cloud Solutions Architecture Desk",
+        "title": "Solutions Architecture Desk (Synthetic Demo)",
+        "email": "aws-solutions-demo@amazon.com",
+        "company_name": "Amazon Web Services (AWS) - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://aws.amazon.com",
+        "company_phone": "+1-206-266-1000",
+        "company_description": "Synthetic demonstrative record: Cloud infrastructure, serverless compute, and enterprise database services.",
+        "region": "North America",
+        "industry": "Information Technology",
+        "source_type": "demo",
+        "source_url": "https://aws.amazon.com/contact-us/",
+        "lawful_basis_note": "Synthetic Demo Data — AWS Business Unit Prototype (Public Directory Simulation)"
+    },
+    {
+        "name": "Procurement & B2B Operations",
+        "title": "Enterprise Accounts Team (Synthetic Demo)",
+        "email": "business-b2b-demo@amazon.com",
+        "company_name": "Amazon Business B2B - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://business.amazon.com",
+        "company_phone": "+1-888-281-3847",
+        "company_description": "Synthetic demonstrative record: B2B wholesale marketplace, commercial purchasing, and enterprise supply chain solutions.",
+        "region": "North America",
+        "industry": "Retail & E-Commerce",
+        "source_type": "demo",
+        "source_url": "https://business.amazon.com/en/contact-us",
+        "lawful_basis_note": "Synthetic Demo Data — Commercial Marketplace Prototype"
+    },
+    {
+        "name": "Robotics & Logistics Engineering",
+        "title": "Fulfillment Systems Desk (Synthetic Demo)",
+        "email": "robotics-fulfillment-demo@amazon.com",
+        "company_name": "Amazon Robotics & Fulfillment - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://aboutamazon.com",
+        "company_phone": "+1-206-266-1000",
+        "company_description": "Synthetic demonstrative record: Automated material handling, autonomous mobile robots, and warehouse logistics.",
+        "region": "North America",
+        "industry": "Manufacturing & Industrial",
+        "source_type": "demo",
+        "source_url": "https://aboutamazon.com/news/operations",
+        "lawful_basis_note": "Synthetic Demo Data — Logistics Automation Prototype"
+    },
+    {
+        "name": "Enterprise Advertising Partnerships",
+        "title": "Ad Strategy Group (Synthetic Demo)",
+        "email": "advertising-ads-demo@amazon.com",
+        "company_name": "Amazon Advertising - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://advertising.amazon.com",
+        "company_phone": "+1-206-266-1000",
+        "company_description": "Synthetic demonstrative record: Retail media ad exchange, sponsored listings, and campaign measurement telemetry.",
+        "region": "North America",
+        "industry": "Information Technology",
+        "source_type": "demo",
+        "source_url": "https://advertising.amazon.com/contact",
+        "lawful_basis_note": "Synthetic Demo Data — Ad Network Prototype"
+    },
+    {
+        "name": "EMEA Cloud Infrastructure Team",
+        "title": "Regional Cloud Team (Synthetic Demo)",
+        "email": "aws-emea-cloud-demo@amazon.com",
+        "company_name": "Amazon Web Services EMEA - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://aws.amazon.com/local/uk/",
+        "company_phone": "+44-20-7084-7000",
+        "company_description": "Synthetic demonstrative record: EMEA sovereign cloud architecture, data residency, and GDPR compliance systems.",
+        "region": "Europe (UK/EU)",
+        "industry": "Information Technology",
+        "source_type": "demo",
+        "source_url": "https://aws.amazon.com/contact-us/",
+        "lawful_basis_note": "Synthetic Demo Data — EMEA Cloud Prototype"
+    },
+    {
+        "name": "APAC Commercial Operations",
+        "title": "Regional Enterprise Desk (Synthetic Demo)",
+        "email": "apac-commercial-demo@amazon.com",
+        "company_name": "Amazon Commercial Operations APAC - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://aboutamazon.in",
+        "company_phone": "+91-80-4000-0000",
+        "company_description": "Synthetic demonstrative record: APAC regional cross-border commerce, seller ecosystems, and customer logistics.",
+        "region": "Asia-Pacific",
+        "industry": "Retail & E-Commerce",
+        "source_type": "demo",
+        "source_url": "https://aboutamazon.in",
+        "lawful_basis_note": "Synthetic Demo Data — APAC Operations Prototype"
+    },
+    {
+        "name": "Devices & Hardware Development Lab",
+        "title": "Hardware Development Desk (Synthetic Demo)",
+        "email": "lab126-hardware-demo@amazon.com",
+        "company_name": "Amazon Devices Lab126 - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://amazon.jobs/lab126",
+        "company_phone": "+1-408-863-7000",
+        "company_description": "Synthetic demonstrative record: Consumer electronics, smart home automation, and connected edge devices.",
+        "region": "North America",
+        "industry": "Information Technology",
+        "source_type": "demo",
+        "source_url": "https://amazon.jobs/lab126",
+        "lawful_basis_note": "Synthetic Demo Data — Hardware Engineering Prototype"
+    },
+    {
+        "name": "Clean Energy & Sustainability Procurement",
+        "title": "Renewable Power Desk (Synthetic Demo)",
+        "email": "sustainability-operations-demo@amazon.com",
+        "company_name": "Amazon Sustainability & Clean Energy - Demo Entity",
+        "company_domain": "amazon.com",
+        "company_website": "https://sustainability.aboutamazon.com",
+        "company_phone": "+1-206-266-1000",
+        "company_description": "Synthetic demonstrative record: Corporate renewable energy power purchase agreements (PPAs) and net-zero carbon operations.",
+        "region": "North America",
+        "industry": "CleanTech & Energy",
+        "source_type": "demo",
+        "source_url": "https://sustainability.aboutamazon.com",
+        "lawful_basis_note": "Synthetic Demo Data — Sustainability Prototype"
+    }
+]
+
 class DiscoveryConnector:
     """Base plug-in connector interface for lawful lead discovery"""
     def search(self, query: str, region: Optional[str] = None, max_results: int = 50) -> List[Dict[str, Any]]:
@@ -152,32 +275,40 @@ class DiscoveryConnector:
 class DemoDiscoveryConnector(DiscoveryConnector):
     """Working demo discovery connector with clearly labeled sample leads"""
     def search(self, query: str, region: Optional[str] = None, max_results: int = 50) -> List[Dict[str, Any]]:
-        q = (query or "").lower()
+        q = (query or "").lower().strip()
         results = []
-        for item in DEMO_DISCOVERY_DATABASE:
+        
+        # 1. If query matches Amazon or AWS, use dedicated synthetic Amazon business unit leads
+        if "amazon" in q or "aws" in q:
+            target_pool = AMAZON_SYNTHETIC_DEMO_LEADS
+        else:
+            target_pool = DEMO_DISCOVERY_DATABASE
+            
+        for item in target_pool:
             match = (
                 not q or 
                 q in item["company_name"].lower() or 
                 q in item["industry"].lower() or 
                 q in item["company_description"].lower() or
-                q in item["title"].lower()
+                q in item["title"].lower() or
+                ("amazon" in q and "amazon" in item["company_name"].lower()) or
+                ("aws" in q and "aws" in item["company_name"].lower())
             )
             if match:
                 res = item.copy()
-                res["source_type"] = "demo"
                 res["collected_at"] = datetime.utcnow()
-                res["lawful_basis_note"] = "Demo Discovery Simulation (Public Directory Prototype)"
                 results.append(res)
                 if len(results) >= max_results:
                     break
-        # If query filtered out everything, return top sample leads with demo indicator
-        if not results:
+                    
+        # If query was empty (browse mode), return default sample database
+        if not q and not results:
             for item in DEMO_DISCOVERY_DATABASE[:max_results]:
                 res = item.copy()
-                res["source_type"] = "demo"
                 res["collected_at"] = datetime.utcnow()
-                res["lawful_basis_note"] = "Demo Discovery Simulation (Public Directory Prototype)"
                 results.append(res)
+                
+        # Do not return unrelated random companies when a specific query is not found
         return results
 
 class OpenStreetMapConnector(DiscoveryConnector):

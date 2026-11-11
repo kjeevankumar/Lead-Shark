@@ -118,6 +118,24 @@ class DiscoveryJobResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class DiscoveryResultResponse(BaseModel):
+    id: str
+    discovery_job_id: str
+    lead_id: Optional[str] = None
+    company_name: Optional[str] = None
+    domain: Optional[str] = None
+    website: Optional[str] = None
+    email: Optional[str] = None
+    contact_name: Optional[str] = None
+    title: Optional[str] = None
+    source_url: Optional[str] = None
+    result_status: str
+    duplicate_reason: Optional[str] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 # --- Campaign Schemas ---
 class CampaignStepSchema(BaseModel):
     step_no: int

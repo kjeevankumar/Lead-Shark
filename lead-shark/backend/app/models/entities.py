@@ -80,6 +80,29 @@ class DiscoveryJob(Base):
     error_message = Column(Text, nullable=True)
     last_run = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    results = relationship("DiscoveryResult", back_populates="discovery_job", cascade="all, delete-orphan")
+
+class DiscoveryResult(Base):
+    __tablename__ = "discovery_results"
+    
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    discovery_job_id = Column(String(36), ForeignKey("discovery_jobs.id"), nullable=False, index=True)
+    lead_id = Column(String(36), ForeignKey("leads.id"), nullable=True, index=True)
+    company_name = Column(String(255), nullable=True)
+    domain = Column(String(255), nullable=True)
+    website = Column(String(500), nullable=True)
+    email = Column(String(255), nullable=True, index=True)
+    contact_name = Column(String(255), nullable=True)
+    title = Column(String(255), nullable=True)
+    source_url = Column(String(500), nullable=True)
+    result_status = Column(String(50), nullable=False, default="new") # new, duplicate, rejected, failed
+    duplicate_reason = Column(Text, nullable=True)
+    raw_data = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    discovery_job = relationship("DiscoveryJob", back_populates="results")
+    lead = relationship("Lead")
 
 class Campaign(Base):
     __tablename__ = "campaigns"

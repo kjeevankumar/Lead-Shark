@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, CheckCircle2, XCircle, ShieldCheck, Cpu, 
-  Trash2, Ban, Eye, RefreshCw, Filter, Download, CheckSquare, Square 
+  Trash2, Ban, Eye, RefreshCw, Filter, Download, CheckSquare, Square,
+  Search, X
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Lead, UserRole } from '../types';
@@ -18,6 +19,7 @@ export const AllLeads: React.FC<AllLeadsProps> = ({ currentRole, globalSearch })
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Filters
+  const [localSearch, setLocalSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState('All');
   const [regionFilter, setRegionFilter] = useState('All');
   const [verificationFilter, setVerificationFilter] = useState('All');
@@ -26,8 +28,9 @@ export const AllLeads: React.FC<AllLeadsProps> = ({ currentRole, globalSearch })
   const fetchLeads = async () => {
     try {
       setLoading(true);
+      const effectiveSearch = localSearch.trim() || globalSearch.trim() || undefined;
       const data = await api.listLeads({
-        search: globalSearch || undefined,
+        search: effectiveSearch,
         sector: sectorFilter !== 'All' ? sectorFilter : undefined,
         region: regionFilter !== 'All' ? regionFilter : undefined,
         verification_status: verificationFilter !== 'All' ? verificationFilter : undefined,
@@ -43,7 +46,7 @@ export const AllLeads: React.FC<AllLeadsProps> = ({ currentRole, globalSearch })
 
   useEffect(() => {
     fetchLeads();
-  }, [globalSearch, sectorFilter, regionFilter, verificationFilter, statusFilter]);
+  }, [localSearch, globalSearch, sectorFilter, regionFilter, verificationFilter, statusFilter]);
 
   const handleSelectAll = () => {
     if (selectedIds.length === leads.length) {
@@ -165,6 +168,27 @@ export const AllLeads: React.FC<AllLeadsProps> = ({ currentRole, globalSearch })
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center gap-4 text-xs">
+        {/* Company / Domain / Email Search Field */}
+        <div className="relative flex-1 min-w-[260px] max-w-sm">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search company name, domain, or email..."
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition"
+          />
+          {localSearch && (
+            <button
+              onClick={() => setLocalSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
         <div className="flex items-center gap-1.5 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
           <Filter className="w-3.5 h-3.5" /> Filters:
         </div>

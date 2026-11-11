@@ -4,11 +4,11 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.entities import DiscoveryJob, Lead, Company, User
-from app.schemas.schemas import DiscoveryJobCreate, DiscoveryJobResponse
+from app.models.entities import DiscoveryJob, DiscoveryResult, Lead, Company, User
+from app.schemas.schemas import DiscoveryJobCreate, DiscoveryJobResponse, DiscoveryResultResponse
 from app.core.security import get_current_user
 from app.services.discovery.connectors import DemoDiscoveryConnector, OpenStreetMapConnector
-from app.services.deduplication.dedup import is_duplicate_lead, normalize_domain, normalize_email
+from app.services.deduplication.dedup import is_duplicate_lead, find_duplicate_lead, normalize_domain, normalize_email
 from app.services.compliance.checker import log_audit
 
 router = APIRouter(prefix="/discovery", tags=["Lead Discovery"])
@@ -55,48 +55,104 @@ def create_discovery_job(
         
         for item in raw_leads:
             norm_email = normalize_email(item.get("email", ""))
-            domain = normalize_domain(item.get("company_domain", "") or norm_email.split("@")[1])
+            domain = normalize_domain(item.get("company_domain", "") or (norm_email.split("@")[1] if "@" in norm_email else ""))
+            company_name = item.get("company_name", "")
+            website = item.get("company_website")
+            contact_name = item.get("name")
+            title = item.get("title")
+            source_url = item.get("source_url") or "https://leadshark.io/demo"
+            raw_json = json.dumps(item, default=str)
             
-            # Check duplication
-            is_dup, _ = is_duplicate_lead(db, norm_email, domain, item.get("company_name"))
-            if is_dup:
-                duplicates_skipped += 1
+            # 1. Validate email presence
+            if not norm_email or "@" not in norm_email:
+                rejected_res = DiscoveryResult(
+                    discovery_job_id=job.id,
+                    lead_id=None,
+                    company_name=company_name,
+                    domain=domain,
+                    website=website,
+                    email=norm_email,
+                    contact_name=contact_name,
+                    title=title,
+                    source_url=source_url,
+                    result_status="rejected",
+                    duplicate_reason="Invalid or missing email address",
+                    raw_data=raw_json
+                )
+                db.add(rejected_res)
                 continue
                 
-            # Create or find company
+            # 2. Check duplication
+            is_dup, reason, existing_lead = find_duplicate_lead(db, norm_email, domain, company_name)
+            if is_dup:
+                duplicates_skipped += 1
+                dup_res = DiscoveryResult(
+                    discovery_job_id=job.id,
+                    lead_id=existing_lead.id if existing_lead else None,
+                    company_name=company_name,
+                    domain=domain,
+                    website=website,
+                    email=norm_email,
+                    contact_name=contact_name,
+                    title=title,
+                    source_url=source_url,
+                    result_status="duplicate",
+                    duplicate_reason=reason,
+                    raw_data=raw_json
+                )
+                db.add(dup_res)
+                continue
+                
+            # 3. Create or find company
             company = None
-            if item.get("company_name"):
+            if company_name:
                 company = db.query(Company).filter(Company.domain == domain).first()
                 if not company:
                     company = Company(
-                        name=item.get("company_name"),
+                        name=company_name,
                         domain=domain,
-                        website=item.get("company_website"),
+                        website=website,
                         phone=item.get("company_phone"),
                         description=item.get("company_description"),
                         sector=item.get("industry")
                     )
                     db.add(company)
-                    db.commit()
-                    db.refresh(company)
+                    db.flush()
                     
             lead = Lead(
                 company_id=company.id if company else None,
-                name=item.get("name"),
-                title=item.get("title"),
+                name=contact_name,
+                title=title,
                 email=norm_email,
                 region=item.get("region", "North America"),
                 industry=item.get("industry"),
                 sector=item.get("industry"),
                 source_type=item.get("source_type", job_in.source),
-                source_url=item.get("source_url", "https://leadshark.io/demo"),
+                source_url=source_url,
                 collected_at=datetime.utcnow(),
                 lawful_basis_note=item.get("lawful_basis_note", "Public Directory / Business Inquiry"),
                 status="new",
                 email_status="unknown"
             )
             db.add(lead)
+            db.flush()
+            
             new_leads_count += 1
+            new_res = DiscoveryResult(
+                discovery_job_id=job.id,
+                lead_id=lead.id,
+                company_name=company_name,
+                domain=domain,
+                website=website,
+                email=norm_email,
+                contact_name=contact_name,
+                title=title,
+                source_url=source_url,
+                result_status="new",
+                duplicate_reason=None,
+                raw_data=raw_json
+            )
+            db.add(new_res)
             
         db.commit()
         
@@ -142,3 +198,54 @@ def get_discovery_job(
     if not job:
         raise HTTPException(status_code=404, detail="Discovery job not found")
     return job
+
+@router.get("/jobs/{id}/results", response_model=List[DiscoveryResultResponse])
+def get_discovery_job_results(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    job = db.query(DiscoveryJob).filter(DiscoveryJob.id == id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Discovery job not found")
+        
+    results = db.query(DiscoveryResult).filter(
+        DiscoveryResult.discovery_job_id == id
+    ).order_by(DiscoveryResult.created_at.asc()).all()
+    
+    # Graceful backfill for past jobs run prior to DiscoveryResult migration
+    if not results and job.total_found > 0:
+        try:
+            if job.source == "osm":
+                conn = OpenStreetMapConnector()
+            else:
+                conn = DemoDiscoveryConnector()
+            raw = conn.search(query=job.query, region=job.region, max_results=job.max_results)
+            for item in raw:
+                norm_email = normalize_email(item.get("email", ""))
+                domain = normalize_domain(item.get("company_domain", "") or (norm_email.split("@")[1] if "@" in norm_email else ""))
+                is_dup, reason, existing_lead = find_duplicate_lead(db, norm_email, domain, item.get("company_name"))
+                status = "duplicate" if is_dup else "new"
+                b_res = DiscoveryResult(
+                    discovery_job_id=job.id,
+                    lead_id=existing_lead.id if existing_lead else None,
+                    company_name=item.get("company_name"),
+                    domain=domain,
+                    website=item.get("company_website"),
+                    email=norm_email,
+                    contact_name=item.get("name"),
+                    title=item.get("title"),
+                    source_url=item.get("source_url"),
+                    result_status=status,
+                    duplicate_reason=reason if is_dup else None,
+                    raw_data=json.dumps(item, default=str)
+                )
+                db.add(b_res)
+            db.commit()
+            results = db.query(DiscoveryResult).filter(
+                DiscoveryResult.discovery_job_id == id
+            ).order_by(DiscoveryResult.created_at.asc()).all()
+        except Exception:
+            pass
+            
+    return results

@@ -2,13 +2,13 @@ import pytest
 import asyncio
 from app.main import app, health_check
 from app.database import SessionLocal
-from app.models.entities import Lead, Campaign, User, SuppressionList
+from app.models.entities import Lead, Campaign, User, SuppressionList, Send
 from app.schemas.schemas import (
     UserLogin, DiscoveryJobCreate, CampaignCreate, CampaignUpdate,
     CampaignPreviewRequest, DeleteByEmailRequest, EmailEventPayload
 )
 from app.api.auth import login, switch_demo_role
-from app.api.discovery import create_discovery_job, list_discovery_jobs
+from app.api.discovery import create_discovery_job, list_discovery_jobs, get_discovery_job_results
 from app.api.leads import list_leads, verify_leads, classify_lead_sector, approve_lead, reject_lead, delete_lead_by_email
 from app.api.campaigns import create_campaign, update_campaign, approve_campaign, preview_campaign, send_campaign_batch
 from app.api.compliance import get_suppression_list, public_unsubscribe_action
@@ -144,6 +144,7 @@ def test_pre_send_checklist_and_batch_send(db, reviewer_user):
         lead.status = "approved"
         lead.sector = "Information Technology"
         lead.sector_confidence = 0.95
+        db.query(Send).filter(Send.lead_id == lead.id).delete()
     db.commit()
         
     # Send simulated batch
@@ -167,3 +168,65 @@ def test_analytics_and_audit(db, admin_user):
     assert stats["total_leads"] > 0
     assert stats["emails_sent"] > 0
     assert "delivery_rate" in stats
+
+def test_amazon_discovery_persistence_and_deduplication(db, sales_user):
+    # 1. Execute Amazon discovery job
+    job_in = DiscoveryJobCreate(
+        job_name="Amazon Cloud Systems Research",
+        source="demo",
+        query="Amazon",
+        region="North America",
+        max_results=8
+    )
+    job1 = create_discovery_job(job_in, db, sales_user)
+    assert job1.status == "completed"
+    assert job1.total_found == 8
+    
+    # 2. Verify all 8 results are persisted in discovery_results table
+    results1 = get_discovery_job_results(job1.id, db, sales_user)
+    assert len(results1) == 8
+    for r in results1:
+        assert r.discovery_job_id == job1.id
+        assert "amazon" in r.domain.lower() or "amazon" in r.company_name.lower()
+        assert r.result_status in ["new", "duplicate"]
+        # Verify contact/unit is clearly identified
+        assert r.contact_name is not None
+        assert "@amazon.com" in r.email
+        
+    # 3. Execute SECOND Amazon discovery job with the same query (deduplication test)
+    job2_in = DiscoveryJobCreate(
+        job_name="Amazon Cloud Systems Research Repeat",
+        source="demo",
+        query="Amazon",
+        region="North America",
+        max_results=8
+    )
+    job2 = create_discovery_job(job2_in, db, sales_user)
+    assert job2.status == "completed"
+    assert job2.total_found == 8
+    assert job2.duplicates_skipped == 8
+    assert job2.new_leads_count == 0
+    
+    # 4. Verify results for job2 are persisted, marked as duplicate, and linked to existing leads
+    results2 = get_discovery_job_results(job2.id, db, sales_user)
+    assert len(results2) == 8
+    for r in results2:
+        assert r.result_status == "duplicate"
+        assert r.lead_id is not None # Linked to existing lead
+        assert "already exists" in (r.duplicate_reason or "")
+        
+def test_all_leads_company_search(db, admin_user):
+    # 1. Search by company name
+    res_company = list_leads(search="Amazon", db=db, current_user=admin_user)
+    assert len(res_company) > 0
+    for l in res_company:
+        assert "amazon" in l.company.name.lower() or "amazon" in l.email.lower()
+        
+    # 2. Search by domain
+    res_domain = list_leads(search="amazon.com", db=db, current_user=admin_user)
+    assert len(res_domain) > 0
+    
+    # 3. Search by specific email
+    res_email = list_leads(search="aws-solutions-demo@amazon.com", db=db, current_user=admin_user)
+    assert len(res_email) == 1
+    assert res_email[0].email == "aws-solutions-demo@amazon.com"
