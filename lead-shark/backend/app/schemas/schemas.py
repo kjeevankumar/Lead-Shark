@@ -91,14 +91,16 @@ class LeadImportResponse(BaseModel):
 
 # --- Discovery Schemas ---
 class DiscoveryJobCreate(BaseModel):
-    job_name: Optional[str] = "Business Lead Search"
-    source: str = "demo" # csv, osm, google_places, website, demo
+    job_name: Optional[str] = ""
+    source: str = "all" # all, wikidata, osm, company_directory, external_search, google_places, website, demo
     query: str
     region: Optional[str] = "Global"
+    country: Optional[str] = None
     industry: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
-    max_results: int = 50
+    max_results: int = 25
     schedule: str = "once"
+    force_refresh: bool = False
 
 class DiscoveryJobResponse(BaseModel):
     id: str
@@ -113,6 +115,12 @@ class DiscoveryJobResponse(BaseModel):
     new_leads_count: int
     duplicates_skipped: int
     error_message: Optional[str]
+    search_intent: Optional[str] = None
+    data_mode: str = "live"
+    sources_searched: Optional[str] = None
+    no_results_reason: Optional[str] = None
+    cached: bool = False
+    duration_ms: Optional[int] = None
     last_run: datetime
     created_at: datetime
     
@@ -123,19 +131,39 @@ class DiscoveryResultResponse(BaseModel):
     id: str
     discovery_job_id: str
     lead_id: Optional[str] = None
+    company_id: Optional[str] = None
     company_name: Optional[str] = None
     domain: Optional[str] = None
     website: Optional[str] = None
+    business_category: Optional[str] = None
+    industry: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    region: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     contact_name: Optional[str] = None
     title: Optional[str] = None
+    description: Optional[str] = None
+    source_provider: Optional[str] = None
     source_url: Optional[str] = None
+    verification_status: str = "unverified"
+    is_demo: bool = False
     result_status: str
     duplicate_reason: Optional[str] = None
     created_at: datetime
     
     class Config:
         from_attributes = True
+
+class DiscoveryResultsPageResponse(BaseModel):
+    job: DiscoveryJobResponse
+    items: List[DiscoveryResultResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    facets: Dict[str, List[str]]
 
 # --- Campaign Schemas ---
 class CampaignStepSchema(BaseModel):

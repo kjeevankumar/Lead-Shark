@@ -30,6 +30,11 @@ class Company(Base):
     phone = Column(String(100), nullable=True)
     address = Column(String(500), nullable=True)
     sector = Column(String(100), nullable=True)
+    industry = Column(String(100), nullable=True)
+    business_category = Column(String(150), nullable=True)
+    country = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
+    region = Column(String(100), nullable=True)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -67,7 +72,7 @@ class DiscoveryJob(Base):
     
     id = Column(String(36), primary_key=True, default=gen_uuid)
     job_name = Column(String(255), nullable=False)
-    source = Column(String(50), nullable=False) # csv, osm, google_places, website, demo
+    source = Column(String(50), nullable=False) # all, osm, wikidata, external_search, google_places, website, demo
     query = Column(String(255), nullable=False)
     region = Column(String(100), nullable=True)
     filters = Column(Text, nullable=True)
@@ -78,6 +83,12 @@ class DiscoveryJob(Base):
     new_leads_count = Column(Integer, default=0)
     duplicates_skipped = Column(Integer, default=0)
     error_message = Column(Text, nullable=True)
+    search_intent = Column(String(50), nullable=True) # specific_company, category_location, category_global, domain_url
+    data_mode = Column(String(20), nullable=False, default="live") # live | demo
+    sources_searched = Column(Text, nullable=True) # JSON array of adapter outcomes
+    no_results_reason = Column(Text, nullable=True)
+    cached = Column(Boolean, default=False)
+    duration_ms = Column(Integer, nullable=True)
     last_run = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -89,13 +100,24 @@ class DiscoveryResult(Base):
     id = Column(String(36), primary_key=True, default=gen_uuid)
     discovery_job_id = Column(String(36), ForeignKey("discovery_jobs.id"), nullable=False, index=True)
     lead_id = Column(String(36), ForeignKey("leads.id"), nullable=True, index=True)
+    company_id = Column(String(36), ForeignKey("companies.id"), nullable=True, index=True)
     company_name = Column(String(255), nullable=True)
     domain = Column(String(255), nullable=True)
     website = Column(String(500), nullable=True)
+    business_category = Column(String(150), nullable=True)
+    industry = Column(String(100), nullable=True)
+    country = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
+    region = Column(String(100), nullable=True)
     email = Column(String(255), nullable=True, index=True)
+    phone = Column(String(100), nullable=True)
     contact_name = Column(String(255), nullable=True)
     title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    source_provider = Column(String(50), nullable=True)
     source_url = Column(String(500), nullable=True)
+    verification_status = Column(String(50), nullable=False, default="unverified") # verified_email, verified_domain, risky_email, invalid_email, unverified, demo_sample
+    is_demo = Column(Boolean, nullable=False, default=False)
     result_status = Column(String(50), nullable=False, default="new") # new, duplicate, rejected, failed
     duplicate_reason = Column(Text, nullable=True)
     raw_data = Column(Text, nullable=True)
@@ -103,6 +125,7 @@ class DiscoveryResult(Base):
     
     discovery_job = relationship("DiscoveryJob", back_populates="results")
     lead = relationship("Lead")
+    company = relationship("Company")
 
 class Campaign(Base):
     __tablename__ = "campaigns"

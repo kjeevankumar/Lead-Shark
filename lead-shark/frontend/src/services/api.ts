@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { 
-  User, Lead, DiscoveryJob, DiscoveryResultItem, Campaign, SuppressionRecord, 
-  AuditLogItem, OverviewStatistics, CampaignAnalyticsItem, UserRole 
+  User, Lead, DiscoveryJob, DiscoveryResultItem, DiscoveryResultsPageResponse, DiscoveryProviderInfo,
+  Campaign, SuppressionRecord, AuditLogItem, OverviewStatistics, CampaignAnalyticsItem, UserRole 
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -54,8 +54,18 @@ export const api = {
   },
 
   // Discovery
+  getDiscoveryProviders: async (): Promise<{ providers: DiscoveryProviderInfo[] }> => {
+    const res = await client.get('/api/discovery/providers');
+    return res.data;
+  },
+
   listDiscoveryJobs: async (): Promise<DiscoveryJob[]> => {
     const res = await client.get('/api/discovery/jobs');
+    return res.data;
+  },
+
+  getDiscoveryJob: async (jobId: string): Promise<DiscoveryJob> => {
+    const res = await client.get(`/api/discovery/jobs/${jobId}`);
     return res.data;
   },
 
@@ -64,9 +74,11 @@ export const api = {
     source: string;
     query: string;
     region?: string;
+    country?: string;
     industry?: string;
     max_results?: number;
     schedule?: string;
+    force_refresh?: boolean;
   }): Promise<DiscoveryJob> => {
     const res = await client.post('/api/discovery/jobs', data);
     return res.data;
@@ -74,6 +86,24 @@ export const api = {
 
   getDiscoveryJobResults: async (jobId: string): Promise<DiscoveryResultItem[]> => {
     const res = await client.get(`/api/discovery/jobs/${jobId}/results`);
+    return res.data;
+  },
+
+  getDiscoveryJobResultsPage: async (
+    jobId: string,
+    params?: {
+      page?: number;
+      page_size?: number;
+      industry?: string;
+      country?: string;
+      region?: string;
+      verification_status?: string;
+      result_status?: string;
+      provider?: string;
+      search?: string;
+    }
+  ): Promise<DiscoveryResultsPageResponse> => {
+    const res = await client.get(`/api/discovery/jobs/${jobId}/results/page`, { params });
     return res.data;
   },
 

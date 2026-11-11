@@ -6,12 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.database import engine, Base, SessionLocal, get_db
+from app.database import engine, Base, SessionLocal, get_db, ensure_schema_columns
 from app.core.seed import seed_database
 from app.api import auth, discovery, leads, campaigns, compliance, webhooks, analytics, audit
 
-# Ensure database tables exist immediately upon import
+# Ensure database tables & migrated columns exist immediately upon import
 Base.metadata.create_all(bind=engine)
+ensure_schema_columns()
 _seed_db = SessionLocal()
 try:
     seed_database(_seed_db)

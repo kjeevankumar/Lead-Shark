@@ -68,3 +68,27 @@ def is_duplicate_lead(
     """
     is_dup, reason, _ = find_duplicate_lead(db, email, domain, company_name)
     return is_dup, reason
+
+
+def find_duplicate_company(
+    db: Session,
+    domain: Optional[str] = None,
+    company_name: Optional[str] = None,
+) -> Tuple[bool, str, Optional[Company]]:
+    """
+    Checks if a company already exists in the companies registry by canonical domain or name.
+    Returns (is_duplicate: bool, reason: str, existing_company: Optional[Company]).
+    """
+    norm_dom = normalize_domain(domain or "")
+    if norm_dom and "." in norm_dom:
+        existing = db.query(Company).filter(Company.domain == norm_dom).first()
+        if existing:
+            return True, f"Company domain '{norm_dom}' already in directory (Company ID: {existing.id})", existing
+
+    norm_cname = normalize_name(company_name or "")
+    if norm_cname:
+        for candidate in db.query(Company).filter(Company.name.ilike(f"%{company_name.strip()}%")).limit(10).all():
+            if normalize_name(candidate.name) == norm_cname:
+                return True, f"Company '{candidate.name}' already in directory (Company ID: {candidate.id})", candidate
+
+    return False, "", None

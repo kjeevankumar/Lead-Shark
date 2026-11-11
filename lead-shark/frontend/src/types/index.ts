@@ -61,6 +61,12 @@ export interface DiscoveryJob {
   new_leads_count: number;
   duplicates_skipped: number;
   error_message?: string;
+  search_intent?: string;
+  data_mode: 'live' | 'demo';
+  sources_searched?: string;
+  no_results_reason?: string;
+  cached?: boolean;
+  duration_ms?: number;
   last_run: string;
   created_at: string;
 }
@@ -69,16 +75,53 @@ export interface DiscoveryResultItem {
   id: string;
   discovery_job_id: string;
   lead_id?: string;
+  company_id?: string;
   company_name?: string;
   domain?: string;
   website?: string;
+  business_category?: string;
+  industry?: string;
+  country?: string;
+  city?: string;
+  region?: string;
   email?: string;
+  phone?: string;
   contact_name?: string;
   title?: string;
+  description?: string;
+  source_provider?: string;
   source_url?: string;
+  verification_status: string;
+  is_demo: boolean;
   result_status: 'new' | 'duplicate' | 'rejected' | 'failed';
   duplicate_reason?: string;
   created_at: string;
+}
+
+export interface DiscoveryResultsPageResponse {
+  job: DiscoveryJob;
+  items: DiscoveryResultItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  facets: {
+    industries: string[];
+    countries: string[];
+    regions: string[];
+    verification_statuses: string[];
+    providers: string[];
+    result_statuses: string[];
+  };
+}
+
+export interface DiscoveryProviderInfo {
+  id: string;
+  name: string;
+  type: 'live' | 'demo';
+  configured: boolean;
+  description: string;
+  commercial_keys?: Record<string, boolean>;
 }
 
 export interface CampaignStep {

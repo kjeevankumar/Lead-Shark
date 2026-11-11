@@ -230,3 +230,186 @@ def test_all_leads_company_search(db, admin_user):
     res_email = list_leads(search="aws-solutions-demo@amazon.com", db=db, current_user=admin_user)
     assert len(res_email) == 1
     assert res_email[0].email == "aws-solutions-demo@amazon.com"
+
+
+def test_universal_query_parser_all_intents():
+    from app.services.discovery.query_parser import parse_universal_query
+
+    # Specific company names (dynamic, no predefined list)
+    for name in ["Amazon", "Google", "Microsoft", "Wipro", "Infosys", "Stripe", "Figma"]:
+        p = parse_universal_query(name)
+        assert p.intent == "specific_company"
+        assert p.cleaned_topic.lower() == name.lower()
+
+    # Category + location searches
+    p_hyd = parse_universal_query("IT companies in Hyderabad")
+    assert p_hyd.intent == "category_location"
+    assert p_hyd.location == "Hyderabad"
+    assert p_hyd.inferred_country == "India"
+    assert p_hyd.inferred_region == "Asia-Pacific"
+    assert p_hyd.inferred_industry == "Information Technology"
+
+    p_mfg = parse_universal_query("Manufacturing companies in India")
+    assert p_mfg.intent == "category_location"
+    assert p_mfg.location == "India"
+    assert p_mfg.inferred_industry == "Manufacturing & Industrial"
+
+    p_blr = parse_universal_query("Startups in Bangalore")
+    assert p_blr.intent == "category_location"
+    assert "Bengaluru" in p_blr.location_aliases
+
+    p_tel = parse_universal_query("Healthcare companies in Telangana")
+    assert p_tel.intent == "category_location"
+    assert p_tel.inferred_industry == "Healthcare & Life Sciences"
+
+    # Global category search
+    p_cloud = parse_universal_query("Cloud computing companies globally")
+    assert p_cloud.intent == "category_global"
+    assert p_cloud.inferred_region == "Global"
+
+    # Domain search
+    p_dom = parse_universal_query("https://wipro.com")
+    assert p_dom.intent == "domain_url"
+    assert p_dom.domain_hint == "wipro.com"
+
+
+def test_cross_provider_deduplication_and_enrichment_merge():
+    from app.services.discovery.orchestrator import _deduplicate_across_providers
+
+    raw = [
+        {
+            "company_name": "Acme Robotics",
+            "company_website": "https://acmerobotics.example",
+            "company_domain": "acmerobotics.example",
+            "business_category": "Verified Corporate Domain",
+            "industry": "Commercial Enterprise",
+            "region": "Global",
+            "city": None,
+            "country": None,
+            "email": None,
+            "company_phone": None,
+            "source_provider": "company_directory",
+            "source_url": "https://acmerobotics.example",
+        },
+        {
+            "company_name": "Acme Robotics Ltd",
+            "company_website": "https://acmerobotics.example",
+            "company_domain": "acmerobotics.example",
+            "business_category": "Industrial Robotics",
+            "industry": "Manufacturing & Industrial",
+            "region": "Asia-Pacific",
+            "city": "Hyderabad",
+            "country": "India",
+            "email": None,
+            "company_phone": "+91-40-55550100",
+            "source_provider": "wikidata",
+            "source_url": "https://www.wikidata.org/wiki/Q999999999",
+        },
+    ]
+    merged, count = _deduplicate_across_providers(raw)
+    assert count == 1
+    assert len(merged) == 1
+    assert merged[0]["industry"] == "Manufacturing & Industrial"
+    assert merged[0]["city"] == "Hyderabad"
+    assert merged[0]["company_phone"] == "+91-40-55550100"
+    assert "company_directory" in merged[0]["source_provider"]
+    assert "wikidata" in merged[0]["source_provider"]
+
+
+def test_live_vs_demo_strict_isolation_and_no_fabricated_emails(db, sales_user, monkeypatch):
+    from app.api.discovery import get_discovery_job_results_paginated
+    from app.services.discovery.orchestrator import DiscoveryExecutionResult
+    from app.services.discovery.query_parser import parse_universal_query
+
+    # 1. Mock external orchestrator returning a real-style live result WITHOUT email (never invent email!)
+    # and another empty live search verifying demo data is NEVER injected into live results
+    def fake_live_exec(**kwargs):
+        q = kwargs["query"]
+        parsed = parse_universal_query(q)
+        if q == "Unreachable Empty Query":
+            return DiscoveryExecutionResult(
+                query=q,
+                parsed_query=parsed,
+                data_mode="live",
+                records=[],
+                sources_searched=[{"source_id": "wikidata", "source_label": "Wikidata", "status": "empty", "count": 0, "latency_ms": 120}],
+                total_raw_found=0,
+                cross_provider_merged=0,
+                no_results_reason="External sources returned 0 live records.",
+                cached=False,
+                duration_ms=120,
+            )
+        return DiscoveryExecutionResult(
+            query=q,
+            parsed_query=parsed,
+            data_mode="live",
+            records=[
+                {
+                    "company_name": "Dynamic Live Corp Test",
+                    "company_website": "https://dynamiclivecorp.test",
+                    "company_domain": "dynamiclivecorp.test",
+                    "business_category": "IT Services",
+                    "industry": "Information Technology",
+                    "country": "India",
+                    "city": "Hyderabad",
+                    "region": "Asia-Pacific",
+                    "email": None,  # No public email exposed - MUST remain None!
+                    "company_phone": "+91-40-12345678",
+                    "source_provider": "wikidata",
+                    "source_url": "https://www.wikidata.org/wiki/Q123456",
+                    "verification_status": "verified_domain",
+                    "is_demo": False,
+                    "lawful_basis_note": "Wikidata CC0",
+                }
+            ],
+            sources_searched=[{"source_id": "wikidata", "source_label": "Wikidata", "status": "ok", "count": 1, "latency_ms": 450}],
+            total_raw_found=1,
+            cross_provider_merged=0,
+            no_results_reason=None,
+            cached=False,
+            duration_ms=450,
+        )
+
+    monkeypatch.setattr("app.api.discovery.execute_universal_discovery", fake_live_exec)
+
+    # Empty live query MUST return 0 records and explain why (NEVER mix in demo data)
+    empty_job = create_discovery_job(
+        DiscoveryJobCreate(job_name="", source="all", query="Unreachable Empty Query", region="Global"),
+        db,
+        sales_user,
+    )
+    assert empty_job.data_mode == "live"
+    assert empty_job.total_found == 0
+    assert empty_job.no_results_reason is not None
+
+    # Live company without exposed email MUST be persisted with email=None (not rejected & not fabricated)
+    live_job = create_discovery_job(
+        DiscoveryJobCreate(job_name="", source="all", query="Dynamic Live Corp Test", region="Global"),
+        db,
+        sales_user,
+    )
+    assert live_job.data_mode == "live"
+    assert live_job.total_found == 1
+
+    paged = get_discovery_job_results_paginated(
+        id=live_job.id,
+        page=1,
+        page_size=10,
+        industry="Information Technology",
+        country="India",
+        region="Asia-Pacific",
+        verification_status="verified_domain",
+        result_status="all",
+        provider=None,
+        search=None,
+        db=db,
+        current_user=sales_user,
+    )
+    assert paged.total == 1
+    row = paged.items[0]
+    assert row.company_name == "Dynamic Live Corp Test"
+    assert row.email is None
+    assert row.phone == "+91-40-12345678"
+    assert row.is_demo is False
+    assert "India" in paged.facets["countries"]
+    assert "Information Technology" in paged.facets["industries"]

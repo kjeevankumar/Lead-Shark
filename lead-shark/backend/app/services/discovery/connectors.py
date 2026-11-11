@@ -331,7 +331,7 @@ class DemoDiscoveryConnector(DiscoveryConnector):
         return results
 
 class OpenStreetMapConnector(DiscoveryConnector):
-    """Connector using OpenStreetMap / Overpass API for permitted public business locations"""
+    """Connector delegating strictly to live OpenStreetMapAdapter (no demo fallback or fabricated emails)"""
     def search(
         self, 
         query: str, 
@@ -339,44 +339,12 @@ class OpenStreetMapConnector(DiscoveryConnector):
         max_results: int = 50,
         industry: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        leads = []
-        try:
-            overpass_url = "https://overpass-api.de/api/interpreter"
-            osm_query = f"""[out:json][timeout:3];node["office"](around:50000, 37.7749, -122.4194);out 10;"""
-            with httpx.Client(timeout=2.0) as client:
-                res = client.post(overpass_url, data={"data": osm_query})
-                if res.status_code == 200:
-                    data = res.json()
-                    for elem in data.get("elements", [])[:max_results]:
-                        tags = elem.get("tags", {})
-                        cname = tags.get("name", "Public Enterprise")
-                        dom = normalize_domain(tags.get("website", f"{cname.lower().replace(' ', '')}.com"))
-                        leads.append({
-                            "name": "Public Listing Admin",
-                            "title": "Business Contact",
-                            "email": f"contact@{dom}",
-                            "company_name": cname,
-                            "company_domain": dom,
-                            "company_website": tags.get("website", f"https://{dom}"),
-                            "company_phone": tags.get("phone", "N/A"),
-                            "company_description": f"Public commercial office registered on OpenStreetMap: {tags.get('office', 'commercial')}",
-                            "region": region or "North America",
-                            "industry": "Commercial Services",
-                            "source_type": "osm",
-                            "source_url": "https://www.openstreetmap.org",
-                            "collected_at": datetime.utcnow(),
-                            "lawful_basis_note": "OpenStreetMap ODbL Open Public Listing Data"
-                        })
-        except Exception:
-            pass
-            
-        if not leads:
-            demo_conn = DemoDiscoveryConnector()
-            leads = demo_conn.search(query, region, max_results)
-            for l in leads:
-                l["source_type"] = "osm"
-                l["lawful_basis_note"] = "Permitted Public Map Directory Listing"
-        return leads
+        from app.services.discovery.adapters import OpenStreetMapAdapter
+        from app.services.discovery.query_parser import parse_universal_query
+
+        parsed = parse_universal_query(query, region=region, industry=industry)
+        outcome = OpenStreetMapAdapter().search(parsed, max_results=max_results)
+        return outcome.records
 
 def parse_csv_leads(content_bytes: bytes) -> List[Dict[str, Any]]:
     """Parse uploaded CSV into standardized raw lead dictionaries"""

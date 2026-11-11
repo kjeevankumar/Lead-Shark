@@ -2,7 +2,7 @@ import os
 import re
 import logging
 from urllib.parse import quote_plus, unquote
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
@@ -87,3 +87,55 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def ensure_schema_columns():
+    """
+    Idempotently adds newly introduced columns to existing tables
+    in SQLite or Supabase PostgreSQL without breaking existing data.
+    """
+    is_pg = "postgresql" in db_url
+    bool_false = "FALSE" if is_pg else "0"
+    required_columns = {
+        "companies": [
+            ("industry", "VARCHAR(100)"),
+            ("business_category", "VARCHAR(150)"),
+            ("country", "VARCHAR(100)"),
+            ("city", "VARCHAR(100)"),
+            ("region", "VARCHAR(100)"),
+        ],
+        "discovery_jobs": [
+            ("search_intent", "VARCHAR(50)"),
+            ("data_mode", "VARCHAR(20) NOT NULL DEFAULT 'live'"),
+            ("sources_searched", "TEXT"),
+            ("no_results_reason", "TEXT"),
+            ("cached", f"BOOLEAN DEFAULT {bool_false}"),
+            ("duration_ms", "INTEGER"),
+        ],
+        "discovery_results": [
+            ("company_id", "VARCHAR(36)"),
+            ("business_category", "VARCHAR(150)"),
+            ("industry", "VARCHAR(100)"),
+            ("country", "VARCHAR(100)"),
+            ("city", "VARCHAR(100)"),
+            ("region", "VARCHAR(100)"),
+            ("phone", "VARCHAR(100)"),
+            ("description", "TEXT"),
+            ("source_provider", "VARCHAR(50)"),
+            ("verification_status", "VARCHAR(50) NOT NULL DEFAULT 'unverified'"),
+            ("is_demo", f"BOOLEAN NOT NULL DEFAULT {bool_false}"),
+        ],
+    }
+
+    try:
+        inspector = inspect(engine)
+        existing_tables = set(inspector.get_table_names())
+        with engine.begin() as conn:
+            for table_name, cols in required_columns.items():
+                if table_name not in existing_tables:
+                    continue
+                existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+                for col_name, col_def in cols:
+                    if col_name not in existing_cols:
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}"))
+    except Exception as exc:
+        logger.warning(f"Schema column migration notice: {exc}")
