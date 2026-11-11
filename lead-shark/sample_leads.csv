@@ -1,0 +1,10 @@
+contact_name,title,email,company,website,phone,region,industry,description
+Alexander Vance,Chief Information Officer,a.vance@vancetechcorp.com,Vance Tech Corporation,https://vancetechcorp.com,+1-415-555-8821,North America,Information Technology,Enterprise Kubernetes cluster management and cyber vulnerability monitoring platforms
+Dr. Miriam Davies,Head of Clinical Oncology,m.davies@daviesgenomics.org,Davies Genomics Institute,https://daviesgenomics.org,+44-20-7946-8812,Europe (UK/EU),Healthcare & Life Sciences,Genomic sequencing pipelines and personalized oncology therapeutic clinical trials
+Vikramaditya Rao,Senior Partner,v.rao@raoconsulting.in,Rao Strategic Advisory,https://raoconsulting.in,+91-22-6712-9900,Asia-Pacific,Professional & Legal Services,Cross-border compliance M&A strategy and Indian DPDP Act advisory services
+Liam O'Connor,VP of Supply Chain Logistics,liam@oconnorfreight.ie,O'Connor Global Freight,https://oconnorfreight.ie,+353-1-496-0123,Europe (UK/EU),Manufacturing & Industrial,Multimodal container freight tracking and automated cold-chain logistics
+Clara Dupont,Director of Digital Retail,c.dupont@lumiereluxe.com,Lumière Luxury Goods,https://lumiereluxe.com,+33-1-42-68-99-11,Europe (UK/EU),Retail & E-Commerce,Direct-to-consumer luxury apparel and high-volume e-commerce fulfillment
+Rajeev Sen,Founder & CTO,rajeev@senfintech.io,Sen Financial Technologies,https://senfintech.io,+1-212-555-4321,North America,Financial Services,High-frequency automated liquidity market making and institutional trade settlement APIs
+Elena Rostova,Chief Scientific Officer,elena.rostova@aurorabiopharma.eu,Aurora BioPharma,https://aurorabiopharma.eu,+44-20-7946-0192,Europe (UK/EU),Healthcare & Life Sciences,Next-generation targeted oncology therapeutics (Duplicate test record)
+Invalid Test Lead,Anonymous,not-an-email-syntax,Ghost Company,https://ghost.io,+1-800-000-0000,North America,General Business,Invalid email record for verification rejection testing
+Freemail Lead,Individual,john_doe_test@gmail.com,Personal Freelancer,https://freelance.org,+1-555-010-0200,North America,Consulting,Personal freemail consumer address for risky tag testing
