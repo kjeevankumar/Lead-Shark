@@ -325,7 +325,7 @@ def execute_universal_discovery(
             for k in adapter_keys
         }
         try:
-            for fut in as_completed(future_map, timeout=28.0):
+            for fut in as_completed(future_map, timeout=16.0):
                 key = future_map[fut]
                 try:
                     outcome = fut.result(timeout=1.0)
@@ -353,8 +353,8 @@ def execute_universal_discovery(
                             source_label=LIVE_ADAPTER_REGISTRY[key].source_label,
                             status="timeout",
                             records=[],
-                            latency_ms=20000,
-                            message="Provider timed out after 20s budget",
+                            latency_ms=16000,
+                            message="Provider timed out after 16s budget",
                         )
                     )
     finally:

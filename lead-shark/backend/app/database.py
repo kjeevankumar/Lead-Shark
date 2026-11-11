@@ -90,18 +90,18 @@ def get_db():
 
 def ensure_schema_columns():
     """
-    Idempotently adds newly introduced columns to existing tables
-    in SQLite or Supabase PostgreSQL without breaking existing data.
+    Idempotently adds newly introduced columns and widens PostgreSQL VARCHAR lengths
+    without breaking existing data.
     """
     is_pg = "postgresql" in db_url
     bool_false = "FALSE" if is_pg else "0"
     required_columns = {
         "companies": [
-            ("industry", "VARCHAR(100)"),
-            ("business_category", "VARCHAR(150)"),
-            ("country", "VARCHAR(100)"),
-            ("city", "VARCHAR(100)"),
-            ("region", "VARCHAR(100)"),
+            ("industry", "VARCHAR(255)"),
+            ("business_category", "VARCHAR(255)"),
+            ("country", "VARCHAR(255)"),
+            ("city", "VARCHAR(255)"),
+            ("region", "VARCHAR(255)"),
         ],
         "discovery_jobs": [
             ("search_intent", "VARCHAR(50)"),
@@ -113,14 +113,14 @@ def ensure_schema_columns():
         ],
         "discovery_results": [
             ("company_id", "VARCHAR(36)"),
-            ("business_category", "VARCHAR(150)"),
-            ("industry", "VARCHAR(100)"),
-            ("country", "VARCHAR(100)"),
-            ("city", "VARCHAR(100)"),
-            ("region", "VARCHAR(100)"),
-            ("phone", "VARCHAR(100)"),
+            ("business_category", "VARCHAR(255)"),
+            ("industry", "VARCHAR(255)"),
+            ("country", "VARCHAR(255)"),
+            ("city", "VARCHAR(255)"),
+            ("region", "VARCHAR(255)"),
+            ("phone", "VARCHAR(255)"),
             ("description", "TEXT"),
-            ("source_provider", "VARCHAR(50)"),
+            ("source_provider", "VARCHAR(255)"),
             ("verification_status", "VARCHAR(50) NOT NULL DEFAULT 'unverified'"),
             ("is_demo", f"BOOLEAN NOT NULL DEFAULT {bool_false}"),
         ],
@@ -137,5 +137,39 @@ def ensure_schema_columns():
                 for col_name, col_def in cols:
                     if col_name not in existing_cols:
                         conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}"))
+
+        if is_pg:
+            widen_pg_columns = [
+                ("companies", "website", "TEXT"),
+                ("companies", "phone", "VARCHAR(255)"),
+                ("companies", "sector", "VARCHAR(255)"),
+                ("companies", "industry", "VARCHAR(255)"),
+                ("companies", "business_category", "VARCHAR(255)"),
+                ("companies", "country", "VARCHAR(255)"),
+                ("companies", "city", "VARCHAR(255)"),
+                ("companies", "region", "VARCHAR(255)"),
+                ("leads", "region", "VARCHAR(255)"),
+                ("leads", "industry", "VARCHAR(255)"),
+                ("leads", "sector", "VARCHAR(255)"),
+                ("leads", "source_type", "VARCHAR(255)"),
+                ("leads", "source_url", "TEXT"),
+                ("leads", "lawful_basis_note", "TEXT"),
+                ("discovery_results", "website", "TEXT"),
+                ("discovery_results", "source_url", "TEXT"),
+                ("discovery_results", "source_provider", "VARCHAR(255)"),
+                ("discovery_results", "business_category", "VARCHAR(255)"),
+                ("discovery_results", "industry", "VARCHAR(255)"),
+                ("discovery_results", "country", "VARCHAR(255)"),
+                ("discovery_results", "city", "VARCHAR(255)"),
+                ("discovery_results", "region", "VARCHAR(255)"),
+                ("discovery_results", "phone", "VARCHAR(255)"),
+            ]
+            for tbl, col, new_type in widen_pg_columns:
+                if tbl in existing_tables:
+                    try:
+                        with engine.begin() as wconn:
+                            wconn.execute(text(f"ALTER TABLE {tbl} ALTER COLUMN {col} TYPE {new_type}"))
+                    except Exception as w_exc:
+                        logger.debug(f"Column widen note {tbl}.{col}: {w_exc}")
     except Exception as exc:
         logger.warning(f"Schema column migration notice: {exc}")

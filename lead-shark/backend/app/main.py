@@ -1,7 +1,8 @@
 import os
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -40,6 +41,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Ensures unhandled errors return structured JSON inside CORSMiddleware with proper headers."""
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Server error: {str(exc)}"},
+    )
 
 # Public Render Health Check (Strictly NO AUTH required)
 @app.get("/health", tags=["Health"])

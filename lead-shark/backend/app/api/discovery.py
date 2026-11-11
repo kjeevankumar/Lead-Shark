@@ -99,46 +99,102 @@ def get_discovery_providers(current_user: User = Depends(get_current_user)):
     }
 
 
+def _trunc(val: Optional[str], max_len: int) -> Optional[str]:
+    if val is None:
+        return None
+    s = str(val).strip()
+    if len(s) <= max_len:
+        return s
+    return s[:max_len]
+
+
 def _persist_company(db: Session, item: Dict, domain: str) -> Optional[Company]:
-    company_name = (item.get("company_name") or "").strip()
+    company_name = _trunc(item.get("company_name") or "", 250)
     if not company_name:
         return None
+    safe_domain = _trunc(domain or normalize_name(company_name), 250) or normalize_name(company_name)[:250]
     existing = None
-    if domain and "." in domain:
-        existing = db.query(Company).filter(Company.domain == domain).first()
+    if safe_domain and "." in safe_domain:
+        existing = db.query(Company).filter(Company.domain == safe_domain).first()
     if not existing:
         existing = Company(
             name=company_name,
-            domain=domain or normalize_name(company_name),
+            domain=safe_domain,
             website=item.get("company_website"),
-            phone=item.get("company_phone"),
-            sector=item.get("industry"),
-            industry=item.get("industry"),
-            business_category=item.get("business_category"),
-            country=item.get("country"),
-            city=item.get("city"),
-            region=item.get("region"),
+            phone=_trunc(item.get("company_phone"), 250),
+            sector=_trunc(item.get("industry"), 250),
+            industry=_trunc(item.get("industry"), 250),
+            business_category=_trunc(item.get("business_category"), 250),
+            country=_trunc(item.get("country"), 250),
+            city=_trunc(item.get("city"), 250),
+            region=_trunc(item.get("region"), 250),
             description=item.get("company_description"),
         )
         db.add(existing)
         db.flush()
     else:
-        # Enrich missing fields on existing company record without overwriting non-empty attributes
         if not existing.website and item.get("company_website"):
             existing.website = item.get("company_website")
         if not existing.phone and item.get("company_phone"):
-            existing.phone = item.get("company_phone")
+            existing.phone = _trunc(item.get("company_phone"), 250)
         if not existing.country and item.get("country"):
-            existing.country = item.get("country")
+            existing.country = _trunc(item.get("country"), 250)
         if not existing.city and item.get("city"):
-            existing.city = item.get("city")
+            existing.city = _trunc(item.get("city"), 250)
         if not existing.region and item.get("region"):
-            existing.region = item.get("region")
+            existing.region = _trunc(item.get("region"), 250)
         if not existing.business_category and item.get("business_category"):
-            existing.business_category = item.get("business_category")
+            existing.business_category = _trunc(item.get("business_category"), 250)
         if not existing.industry and item.get("industry"):
-            existing.industry = item.get("industry")
+            existing.industry = _trunc(item.get("industry"), 250)
     return existing
+
+
+def _build_discovery_result(
+    *,
+    job_id: str,
+    item: Dict,
+    domain: str,
+    company_name: str,
+    website: Optional[str],
+    email: Optional[str],
+    contact_name: Optional[str],
+    title: Optional[str],
+    source_provider: Optional[str],
+    source_url: Optional[str],
+    verification_status: str,
+    is_demo: bool,
+    result_status: str,
+    raw_json: str,
+    lead_id: Optional[str] = None,
+    company_id: Optional[str] = None,
+    duplicate_reason: Optional[str] = None,
+) -> DiscoveryResult:
+    return DiscoveryResult(
+        discovery_job_id=job_id,
+        lead_id=lead_id,
+        company_id=company_id,
+        company_name=_trunc(company_name, 250),
+        domain=_trunc(domain, 250),
+        website=website,
+        business_category=_trunc(item.get("business_category"), 250),
+        industry=_trunc(item.get("industry"), 250),
+        country=_trunc(item.get("country"), 250),
+        city=_trunc(item.get("city"), 250),
+        region=_trunc(item.get("region"), 250),
+        email=_trunc(email, 250) if email else None,
+        phone=_trunc(item.get("company_phone"), 250),
+        contact_name=_trunc(contact_name, 250),
+        title=_trunc(title, 250),
+        description=item.get("company_description"),
+        source_provider=_trunc(source_provider, 250),
+        source_url=source_url,
+        verification_status=_trunc(verification_status, 48) or "unverified",
+        is_demo=is_demo,
+        result_status=_trunc(result_status, 48) or "new",
+        duplicate_reason=duplicate_reason,
+        raw_data=raw_json,
+    )
 
 
 @router.post("/jobs", response_model=DiscoveryJobResponse)
@@ -161,13 +217,13 @@ def create_discovery_job(
         filters_dict["country"] = country
 
     job = DiscoveryJob(
-        job_name=effective_name,
-        source=job_in.source or "all",
-        query=job_in.query,
-        region=job_in.region or "Global",
+        job_name=_trunc(effective_name, 250) or "Business Leads Search",
+        source=_trunc(job_in.source or "all", 48) or "all",
+        query=_trunc(job_in.query, 250) or "",
+        region=_trunc(job_in.region or "Global", 95),
         filters=json.dumps(filters_dict),
         max_results=job_in.max_results,
-        schedule=job_in.schedule,
+        schedule=_trunc(job_in.schedule, 48) or "once",
         status="running",
         data_mode="demo" if (job_in.source or "").lower() == "demo" else "live",
         last_run=datetime.utcnow(),
@@ -206,80 +262,45 @@ def create_discovery_job(
             source_url = item.get("source_url") or website or "https://leadshark.io"
             is_demo_row = bool(item.get("is_demo")) or exec_res.data_mode == "demo"
             ver_status = item.get("verification_status") or ("demo_sample" if is_demo_row else "unverified")
+            src_provider = "demo" if is_demo_row else (item.get("source_provider") or job_in.source)
             raw_json = json.dumps(item, default=str)
 
             # Demo pipeline maintains strict historical email requirement
             if is_demo_row:
                 if not norm_email or "@" not in norm_email:
-                    db.add(
-                        DiscoveryResult(
-                            discovery_job_id=job.id,
-                            company_name=company_name,
-                            domain=domain,
-                            website=website,
-                            business_category=item.get("business_category"),
-                            industry=item.get("industry"),
-                            country=item.get("country"),
-                            city=item.get("city"),
-                            region=item.get("region"),
-                            email=norm_email or None,
-                            phone=item.get("company_phone"),
-                            contact_name=contact_name,
-                            title=title,
-                            description=item.get("company_description"),
-                            source_provider="demo",
-                            source_url=source_url,
-                            verification_status="demo_sample",
-                            is_demo=True,
-                            result_status="rejected",
-                            duplicate_reason="Invalid or missing email address",
-                            raw_data=raw_json,
-                        )
-                    )
+                    db.add(_build_discovery_result(
+                        job_id=job.id, item=item, domain=domain, company_name=company_name,
+                        website=website, email=None, contact_name=contact_name, title=title,
+                        source_provider="demo", source_url=source_url, verification_status="demo_sample",
+                        is_demo=True, result_status="rejected", raw_json=raw_json,
+                        duplicate_reason="Invalid or missing email address",
+                    ))
                     continue
 
                 is_dup, reason, existing_lead = find_duplicate_lead(db, norm_email, domain, company_name)
                 if is_dup or norm_email in batch_seen_emails:
                     duplicates_skipped += 1
-                    db.add(
-                        DiscoveryResult(
-                            discovery_job_id=job.id,
-                            lead_id=existing_lead.id if existing_lead else None,
-                            company_id=existing_lead.company_id if existing_lead else None,
-                            company_name=company_name,
-                            domain=domain,
-                            website=website,
-                            business_category=item.get("business_category") or "Demo Sample",
-                            industry=item.get("industry"),
-                            country=item.get("country"),
-                            city=item.get("city"),
-                            region=item.get("region"),
-                            email=norm_email,
-                            phone=item.get("company_phone"),
-                            contact_name=contact_name,
-                            title=title,
-                            description=item.get("company_description"),
-                            source_provider="demo",
-                            source_url=source_url,
-                            verification_status="demo_sample",
-                            is_demo=True,
-                            result_status="duplicate",
-                            duplicate_reason=reason or "Duplicate email in batch",
-                            raw_data=raw_json,
-                        )
-                    )
+                    db.add(_build_discovery_result(
+                        job_id=job.id, item=item, domain=domain, company_name=company_name,
+                        website=website, email=norm_email, contact_name=contact_name, title=title,
+                        source_provider="demo", source_url=source_url, verification_status="demo_sample",
+                        is_demo=True, result_status="duplicate", raw_json=raw_json,
+                        lead_id=existing_lead.id if existing_lead else None,
+                        company_id=existing_lead.company_id if existing_lead else None,
+                        duplicate_reason=reason or "Duplicate email in batch",
+                    ))
                     continue
 
                 batch_seen_emails.add(norm_email)
                 company = _persist_company(db, item, domain)
                 lead = Lead(
                     company_id=company.id if company else None,
-                    name=contact_name,
-                    title=title,
-                    email=norm_email,
-                    region=item.get("region", "North America"),
-                    industry=item.get("industry"),
-                    sector=item.get("industry"),
+                    name=_trunc(contact_name, 250),
+                    title=_trunc(title, 250),
+                    email=_trunc(norm_email, 250) or norm_email,
+                    region=_trunc(item.get("region", "North America"), 250),
+                    industry=_trunc(item.get("industry"), 250),
+                    sector=_trunc(item.get("industry"), 250),
                     source_type="demo",
                     source_url=source_url,
                     collected_at=datetime.utcnow(),
@@ -290,33 +311,13 @@ def create_discovery_job(
                 db.add(lead)
                 db.flush()
                 new_leads_count += 1
-                db.add(
-                    DiscoveryResult(
-                        discovery_job_id=job.id,
-                        lead_id=lead.id,
-                        company_id=company.id if company else None,
-                        company_name=company_name,
-                        domain=domain,
-                        website=website,
-                        business_category=item.get("business_category") or "Demo Sample",
-                        industry=item.get("industry"),
-                        country=item.get("country"),
-                        city=item.get("city"),
-                        region=item.get("region"),
-                        email=norm_email,
-                        phone=item.get("company_phone"),
-                        contact_name=contact_name,
-                        title=title,
-                        description=item.get("company_description"),
-                        source_provider="demo",
-                        source_url=source_url,
-                        verification_status="demo_sample",
-                        is_demo=True,
-                        result_status="new",
-                        duplicate_reason=None,
-                        raw_data=raw_json,
-                    )
-                )
+                db.add(_build_discovery_result(
+                    job_id=job.id, item=item, domain=domain, company_name=company_name,
+                    website=website, email=norm_email, contact_name=contact_name, title=title,
+                    source_provider="demo", source_url=source_url, verification_status="demo_sample",
+                    is_demo=True, result_status="new", raw_json=raw_json,
+                    lead_id=lead.id, company_id=company.id if company else None,
+                ))
                 continue
 
             # LIVE UNIVERSAL SEARCH PATH — persist real discovered companies even when public email is not exposed
@@ -324,33 +325,15 @@ def create_discovery_job(
                 is_dup, reason, existing_lead = find_duplicate_lead(db, norm_email, domain, company_name)
                 if is_dup or norm_email in batch_seen_emails:
                     duplicates_skipped += 1
-                    db.add(
-                        DiscoveryResult(
-                            discovery_job_id=job.id,
-                            lead_id=existing_lead.id if existing_lead else None,
-                            company_id=existing_lead.company_id if existing_lead else None,
-                            company_name=company_name,
-                            domain=domain,
-                            website=website,
-                            business_category=item.get("business_category"),
-                            industry=item.get("industry"),
-                            country=item.get("country"),
-                            city=item.get("city"),
-                            region=item.get("region"),
-                            email=norm_email,
-                            phone=item.get("company_phone"),
-                            contact_name=contact_name,
-                            title=title,
-                            description=item.get("company_description"),
-                            source_provider=item.get("source_provider"),
-                            source_url=source_url,
-                            verification_status=ver_status,
-                            is_demo=False,
-                            result_status="duplicate",
-                            duplicate_reason=reason or "Duplicate email in batch",
-                            raw_data=raw_json,
-                        )
-                    )
+                    db.add(_build_discovery_result(
+                        job_id=job.id, item=item, domain=domain, company_name=company_name,
+                        website=website, email=norm_email, contact_name=contact_name, title=title,
+                        source_provider=src_provider, source_url=source_url, verification_status=ver_status,
+                        is_demo=False, result_status="duplicate", raw_json=raw_json,
+                        lead_id=existing_lead.id if existing_lead else None,
+                        company_id=existing_lead.company_id if existing_lead else None,
+                        duplicate_reason=reason or "Duplicate email in batch",
+                    ))
                     continue
 
                 batch_seen_emails.add(norm_email)
@@ -360,13 +343,13 @@ def create_discovery_job(
                 em_res = verify_email_address(norm_email)
                 lead = Lead(
                     company_id=company.id if company else None,
-                    name=contact_name or company_name,
-                    title=title or "Public Business Contact",
-                    email=norm_email,
-                    region=item.get("region") or "Global",
-                    industry=item.get("industry"),
-                    sector=item.get("industry"),
-                    source_type=item.get("source_provider") or job_in.source,
+                    name=_trunc(contact_name or company_name, 250),
+                    title=_trunc(title or "Public Business Contact", 250),
+                    email=_trunc(norm_email, 250) or norm_email,
+                    region=_trunc(item.get("region") or "Global", 250),
+                    industry=_trunc(item.get("industry"), 250),
+                    sector=_trunc(item.get("industry"), 250),
+                    source_type=_trunc(src_provider, 250),
                     source_url=source_url,
                     collected_at=datetime.utcnow(),
                     lawful_basis_note=item.get("lawful_basis_note", "Public Business Directory"),
@@ -377,98 +360,39 @@ def create_discovery_job(
                 db.add(lead)
                 db.flush()
                 new_leads_count += 1
-                db.add(
-                    DiscoveryResult(
-                        discovery_job_id=job.id,
-                        lead_id=lead.id,
-                        company_id=company.id if company else None,
-                        company_name=company_name,
-                        domain=domain,
-                        website=website,
-                        business_category=item.get("business_category"),
-                        industry=item.get("industry"),
-                        country=item.get("country"),
-                        city=item.get("city"),
-                        region=item.get("region"),
-                        email=norm_email,
-                        phone=item.get("company_phone"),
-                        contact_name=contact_name,
-                        title=title,
-                        description=item.get("company_description"),
-                        source_provider=item.get("source_provider"),
-                        source_url=source_url,
-                        verification_status=ver_status,
-                        is_demo=False,
-                        result_status="new",
-                        duplicate_reason=None,
-                        raw_data=raw_json,
-                    )
-                )
+                db.add(_build_discovery_result(
+                    job_id=job.id, item=item, domain=domain, company_name=company_name,
+                    website=website, email=norm_email, contact_name=contact_name, title=title,
+                    source_provider=src_provider, source_url=source_url, verification_status=ver_status,
+                    is_demo=False, result_status="new", raw_json=raw_json,
+                    lead_id=lead.id, company_id=company.id if company else None,
+                ))
             else:
                 # Company record discovered without an exposed public email (never invent emails!)
                 is_comp_dup, comp_reason, existing_comp = find_duplicate_company(db, domain, company_name)
                 if is_comp_dup or (domain and domain in batch_seen_domains):
                     duplicates_skipped += 1
-                    db.add(
-                        DiscoveryResult(
-                            discovery_job_id=job.id,
-                            lead_id=None,
-                            company_id=existing_comp.id if existing_comp else None,
-                            company_name=company_name,
-                            domain=domain,
-                            website=website,
-                            business_category=item.get("business_category"),
-                            industry=item.get("industry"),
-                            country=item.get("country"),
-                            city=item.get("city"),
-                            region=item.get("region"),
-                            email=None,
-                            phone=item.get("company_phone"),
-                            contact_name=contact_name,
-                            title=title,
-                            description=item.get("company_description"),
-                            source_provider=item.get("source_provider"),
-                            source_url=source_url,
-                            verification_status=ver_status,
-                            is_demo=False,
-                            result_status="duplicate",
-                            duplicate_reason=comp_reason or f"Company domain '{domain}' duplicate in search batch",
-                            raw_data=raw_json,
-                        )
-                    )
+                    db.add(_build_discovery_result(
+                        job_id=job.id, item=item, domain=domain, company_name=company_name,
+                        website=website, email=None, contact_name=contact_name, title=title,
+                        source_provider=src_provider, source_url=source_url, verification_status=ver_status,
+                        is_demo=False, result_status="duplicate", raw_json=raw_json,
+                        company_id=existing_comp.id if existing_comp else None,
+                        duplicate_reason=comp_reason or f"Company domain '{domain}' duplicate in search batch",
+                    ))
                     continue
 
                 if domain:
                     batch_seen_domains.add(domain)
                 company = _persist_company(db, item, domain)
                 new_leads_count += 1
-                db.add(
-                    DiscoveryResult(
-                        discovery_job_id=job.id,
-                        lead_id=None,
-                        company_id=company.id if company else None,
-                        company_name=company_name,
-                        domain=domain,
-                        website=website,
-                        business_category=item.get("business_category"),
-                        industry=item.get("industry"),
-                        country=item.get("country"),
-                        city=item.get("city"),
-                        region=item.get("region"),
-                        email=None,
-                        phone=item.get("company_phone"),
-                        contact_name=contact_name,
-                        title=title,
-                        description=item.get("company_description"),
-                        source_provider=item.get("source_provider"),
-                        source_url=source_url,
-                        verification_status=ver_status,
-                        is_demo=False,
-                        result_status="new",
-                        duplicate_reason=None,
-                        raw_data=raw_json,
-                    )
-                )
+                db.add(_build_discovery_result(
+                    job_id=job.id, item=item, domain=domain, company_name=company_name,
+                    website=website, email=None, contact_name=contact_name, title=title,
+                    source_provider=src_provider, source_url=source_url, verification_status=ver_status,
+                    is_demo=False, result_status="new", raw_json=raw_json,
+                    company_id=company.id if company else None,
+                ))
 
         db.commit()
 
@@ -476,7 +400,7 @@ def create_discovery_job(
         job.total_found = total_found
         job.new_leads_count = new_leads_count
         job.duplicates_skipped = duplicates_skipped
-        job.search_intent = exec_res.parsed_query.intent
+        job.search_intent = _trunc(exec_res.parsed_query.intent, 48)
         job.data_mode = exec_res.data_mode
         job.sources_searched = json.dumps(exec_res.sources_searched)
         job.no_results_reason = exec_res.no_results_reason
@@ -502,10 +426,15 @@ def create_discovery_job(
         )
 
     except Exception as e:
-        job.status = "failed"
-        job.error_message = str(e)
-        db.commit()
-        db.refresh(job)
+        db.rollback()
+        failed_job = db.query(DiscoveryJob).filter(DiscoveryJob.id == job.id).first()
+        if failed_job:
+            failed_job.status = "failed"
+            failed_job.error_message = str(e)
+            db.commit()
+            db.refresh(failed_job)
+            return failed_job
+        raise HTTPException(status_code=500, detail=f"Discovery search error: {e}")
 
     return job
 

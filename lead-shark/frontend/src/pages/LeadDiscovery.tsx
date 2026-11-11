@@ -165,7 +165,7 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
       await fetchJobsAndProviders();
       handleOpenJobResultsPage(createdJob);
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to search external sources');
+      alert(err.response?.data?.detail || err.message || 'Failed to search external sources');
     } finally {
       setSearching(false);
     }
@@ -400,10 +400,13 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
               <AlertCircle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-2">
                 <h3 className="text-base font-bold text-slate-900">
-                  No Live Results Found for "{activeJob.query}"
+                  {activeJob.status === 'failed'
+                    ? `Search Execution Error for "${activeJob.query}"`
+                    : `No Live Results Found for "${activeJob.query}"`}
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  {activeJob.no_results_reason ||
+                  {activeJob.error_message ||
+                    activeJob.no_results_reason ||
                     'Configured live public sources (Wikidata, OpenStreetMap, External Search APIs) returned 0 matching entities for this query and filter combination. Lead Shark never invents company records or synthetic emails.'}
                 </p>
               </div>
