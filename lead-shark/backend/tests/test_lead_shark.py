@@ -122,6 +122,30 @@ def test_pre_send_checklist_and_batch_send(db, reviewer_user):
     camp = db.query(Campaign).filter(Campaign.target_sector == "Information Technology").first()
     approve_campaign(camp.id, db, reviewer_user)
     
+    # Create a fresh, eligible test lead not in cooldown and not suppressed
+    fresh_email = "fresh_it_contact_qa@apexcloud.io"
+    # Ensure not suppressed
+    db.query(SuppressionList).filter(SuppressionList.email == fresh_email).delete()
+    lead = db.query(Lead).filter(Lead.email == fresh_email).first()
+    if not lead:
+        lead = Lead(
+            name="Apex Engineering Lead",
+            email=fresh_email,
+            email_status="valid",
+            status="approved",
+            region="North America",
+            sector="Information Technology",
+            sector_confidence=0.95,
+            lawful_basis_note="Legitimate B2B Interest under GDPR Art. 6(1)(f)"
+        )
+        db.add(lead)
+    else:
+        lead.email_status = "valid"
+        lead.status = "approved"
+        lead.sector = "Information Technology"
+        lead.sector_confidence = 0.95
+    db.commit()
+        
     # Send simulated batch
     batch_res = send_campaign_batch(camp.id, batch_size=2, db=db, current_user=reviewer_user)
     assert batch_res["campaign_id"] == camp.id

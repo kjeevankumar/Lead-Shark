@@ -246,8 +246,10 @@ def send_campaign_batch(
     
     if not candidates:
         return {
+            "campaign_id": camp.id,
             "sent_count": 0,
             "failed_count": 0,
+            "results": [],
             "message": "No eligible approved leads found matching target sector."
         }
         
