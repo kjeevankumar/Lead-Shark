@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: lead-shark-backend
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: lead-shark/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        value: "*"
+      - key: RAG_AGENT_URL
+        sync: false
+      - key: SENDING_MODE
+        value: safe_demo
+      - key: SENDING_DOMAIN
+        value: mail.leadshark.io
+      - key: COMPANY_POSTAL_ADDRESS
+        value: "100 Market St, Suite 400, San Francisco, CA 94105, USA"

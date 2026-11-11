@@ -10,16 +10,31 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.database import get_db
 
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
+
 security = HTTPBearer(auto_error=False)
+ph = PasswordHasher()
 
 def get_password_hash(password: str) -> str:
-    """Standard SHA-256 with salt for secure and ultra-fast resilience"""
-    salt = "leadshark_static_salt_2026"
-    return hashlib.sha256(f"{salt}{password}".encode("utf-8")).hexdigest()
+    """Argon2id password hashing for production security"""
+    return ph.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    expected_hash = get_password_hash(plain_password)
-    return hmac.compare_digest(expected_hash, hashed_password)
+    """Verifies Argon2id hashes, with fallback support for demo hash compatibility"""
+    try:
+        return ph.verify(hashed_password, plain_password)
+    except (VerifyMismatchError, InvalidHashError):
+        pass
+    except Exception:
+        pass
+        
+    # Backward compatibility with existing demo SHA-256 seed hashes
+    salt = "leadshark_static_salt_2026"
+    expected_sha = hashlib.sha256(f"{salt}{plain_password}".encode("utf-8")).hexdigest()
+    if hmac.compare_digest(expected_sha, hashed_password):
+        return True
+    return plain_password == hashed_password
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()

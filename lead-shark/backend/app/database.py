@@ -1,16 +1,33 @@
+import os
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 db_url = settings.DATABASE_URL
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-connect_args = {}
-if db_url.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+# Enforce PostgreSQL in production - prevent silent SQLite fallback
+if settings.ENVIRONMENT == "production" and db_url.startswith("sqlite"):
+    raise RuntimeError(
+        "FATAL PRODUCTION CONFIGURATION: DATABASE_URL must be configured with a production "
+        "PostgreSQL database (e.g. Supabase), not SQLite. Please set DATABASE_URL in Render environment settings."
+    )
 
-engine = create_engine(db_url, connect_args=connect_args)
+engine_kwargs = {}
+if db_url.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    # Supabase PostgreSQL connection pooler optimizations
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 300
+    engine_kwargs["pool_size"] = 10
+    engine_kwargs["max_overflow"] = 20
+
+engine = create_engine(db_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
