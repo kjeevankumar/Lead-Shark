@@ -1,5 +1,7 @@
 import os
+import re
 import logging
+from urllib.parse import quote_plus, unquote
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
@@ -31,6 +33,31 @@ if db_url.startswith("http://") or db_url.startswith("https://"):
         "5. Replace [YOUR-PASSWORD] with the password you set when creating the Supabase project.\n"
         "6. In Render Dashboard -> Click 'lead-shark-backend' -> 'Environment' -> Update DATABASE_URL and Save Changes."
     )
+
+def _sanitize_postgres_url(url: str) -> str:
+    """
+    Sanitize PostgreSQL database URLs:
+    - Strips literal square brackets [ ... ] if user copied the Supabase placeholder [YOUR-PASSWORD] literally
+    - URL-encodes special characters like '@', ':', '#' in passwords to prevent hostname truncation/malformed host errors
+    """
+    m = re.match(r'^(?P<scheme>[a-zA-Z0-9+_-]+://)(?P<user>[^:]+):(?P<password>.+)@(?P<host>[^/@]+(?::\d+)?(?:/.*)?)$', url)
+    if not m:
+        return url
+    scheme = m.group('scheme')
+    user = m.group('user')
+    raw_password = m.group('password')
+    host_part = m.group('host')
+
+    clean_password = raw_password.strip()
+    if clean_password.startswith('[') and clean_password.endswith(']'):
+        clean_password = clean_password[1:-1]
+    clean_password = clean_password.strip('[]')
+
+    encoded_password = quote_plus(unquote(clean_password))
+    return f"{scheme}{user}:{encoded_password}@{host_part}"
+
+if "postgresql" in db_url:
+    db_url = _sanitize_postgres_url(db_url)
 
 # Enforce PostgreSQL in production - prevent silent SQLite fallback
 if settings.ENVIRONMENT == "production" and db_url.startswith("sqlite"):
