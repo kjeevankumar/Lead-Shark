@@ -175,7 +175,7 @@ def test_amazon_discovery_persistence_and_deduplication(db, sales_user):
         job_name="Amazon Cloud Systems Research",
         source="demo",
         query="Amazon",
-        region="North America",
+        region="Global",
         max_results=8
     )
     job1 = create_discovery_job(job_in, db, sales_user)
@@ -198,7 +198,7 @@ def test_amazon_discovery_persistence_and_deduplication(db, sales_user):
         job_name="Amazon Cloud Systems Research Repeat",
         source="demo",
         query="Amazon",
-        region="North America",
+        region="Global",
         max_results=8
     )
     job2 = create_discovery_job(job2_in, db, sales_user)

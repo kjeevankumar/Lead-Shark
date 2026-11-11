@@ -60,10 +60,11 @@ export const api = {
   },
 
   createDiscoveryJob: async (data: {
-    job_name: string;
+    job_name?: string;
     source: string;
     query: string;
     region?: string;
+    industry?: string;
     max_results?: number;
     schedule?: string;
   }): Promise<DiscoveryJob> => {

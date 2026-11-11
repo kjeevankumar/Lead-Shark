@@ -91,10 +91,11 @@ class LeadImportResponse(BaseModel):
 
 # --- Discovery Schemas ---
 class DiscoveryJobCreate(BaseModel):
-    job_name: str
+    job_name: Optional[str] = "Business Lead Search"
     source: str = "demo" # csv, osm, google_places, website, demo
     query: str
     region: Optional[str] = "Global"
+    industry: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
     max_results: int = 50
     schedule: str = "once"

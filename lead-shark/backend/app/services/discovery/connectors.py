@@ -269,22 +269,42 @@ AMAZON_SYNTHETIC_DEMO_LEADS = [
 
 class DiscoveryConnector:
     """Base plug-in connector interface for lawful lead discovery"""
-    def search(self, query: str, region: Optional[str] = None, max_results: int = 50) -> List[Dict[str, Any]]:
+    def search(
+        self, 
+        query: str, 
+        region: Optional[str] = None, 
+        max_results: int = 50,
+        industry: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
 class DemoDiscoveryConnector(DiscoveryConnector):
     """Working demo discovery connector with clearly labeled sample leads"""
-    def search(self, query: str, region: Optional[str] = None, max_results: int = 50) -> List[Dict[str, Any]]:
+    def search(
+        self, 
+        query: str, 
+        region: Optional[str] = None, 
+        max_results: int = 50,
+        industry: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         q = (query or "").lower().strip()
         results = []
         
-        # 1. If query matches Amazon or AWS, use dedicated synthetic Amazon business unit leads
+        # 1. If query specifically targets Amazon, use dedicated synthetic Amazon business unit leads
         if "amazon" in q or "aws" in q:
             target_pool = AMAZON_SYNTHETIC_DEMO_LEADS
         else:
             target_pool = DEMO_DISCOVERY_DATABASE
             
         for item in target_pool:
+            # Region filter if specified
+            if region and region not in ["Global", "All", "All Regions"] and item.get("region") != region:
+                continue
+                
+            # Industry filter if specified
+            if industry and industry not in ["All", "All Industries"] and item.get("industry") != industry:
+                continue
+                
             match = (
                 not q or 
                 q in item["company_name"].lower() or 
@@ -301,19 +321,24 @@ class DemoDiscoveryConnector(DiscoveryConnector):
                 if len(results) >= max_results:
                     break
                     
-        # If query was empty (browse mode), return default sample database
-        if not q and not results:
+        # If query was empty and no restrictive filters were applied, return default sample database
+        if not q and not results and (not region or region in ["Global", "All"]) and (not industry or industry in ["All", "All Industries"]):
             for item in DEMO_DISCOVERY_DATABASE[:max_results]:
                 res = item.copy()
                 res["collected_at"] = datetime.utcnow()
                 results.append(res)
                 
-        # Do not return unrelated random companies when a specific query is not found
         return results
 
 class OpenStreetMapConnector(DiscoveryConnector):
     """Connector using OpenStreetMap / Overpass API for permitted public business locations"""
-    def search(self, query: str, region: Optional[str] = None, max_results: int = 50) -> List[Dict[str, Any]]:
+    def search(
+        self, 
+        query: str, 
+        region: Optional[str] = None, 
+        max_results: int = 50,
+        industry: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         leads = []
         try:
             overpass_url = "https://overpass-api.de/api/interpreter"

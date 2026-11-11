@@ -19,13 +19,23 @@ def create_discovery_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Determine search name and industry
+    effective_name = (job_in.job_name or "").strip()
+    if not effective_name:
+        effective_name = f"{job_in.query.strip()} Leads Search" if job_in.query else "Business Leads Search"
+        
+    industry = job_in.industry or (job_in.filters or {}).get("industry")
+    filters_dict = job_in.filters or {}
+    if industry:
+        filters_dict["industry"] = industry
+
     # Create Job record
     job = DiscoveryJob(
-        job_name=job_in.job_name,
+        job_name=effective_name,
         source=job_in.source,
         query=job_in.query,
         region=job_in.region,
-        filters=json.dumps(job_in.filters or {}),
+        filters=json.dumps(filters_dict),
         max_results=job_in.max_results,
         schedule=job_in.schedule,
         status="running",
@@ -46,7 +56,8 @@ def create_discovery_job(
         raw_leads = connector.search(
             query=job_in.query,
             region=job_in.region,
-            max_results=job_in.max_results
+            max_results=job_in.max_results,
+            industry=industry
         )
         
         total_found = len(raw_leads)
