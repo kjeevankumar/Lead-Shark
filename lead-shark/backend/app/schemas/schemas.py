@@ -163,8 +163,8 @@ class CampaignResponse(BaseModel):
         from_attributes = True
 
 class CampaignPreviewRequest(BaseModel):
-    subject: str
-    body: str
+    subject: Optional[str] = None
+    body: Optional[str] = None
     sample_lead_id: Optional[str] = None
 
 class CampaignPreviewResponse(BaseModel):

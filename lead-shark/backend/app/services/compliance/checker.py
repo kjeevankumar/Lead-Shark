@@ -139,7 +139,11 @@ def check_pre_send_compliance(
         if not lead.lawful_basis_note or "legitimate" not in lead.lawful_basis_note.lower():
             violations.append("GDPR/PECR Compliance: Missing legitimate-interest documentation for EU/UK recipient")
             
-    # 6. Campaign Approval Check
+    # 6. Sector Classification & Needs Review Check
+    if lead.sector_confidence < 0.75 or not lead.sector or lead.sector == "Needs Review":
+        violations.append(f"RAG Sector Review: Confidence ({lead.sector_confidence:.2f}) below 0.75 threshold. Mandatory sector confirmation required before campaign entry.")
+
+    # 7. Campaign Approval Check
     if campaign.status not in ["approved", "scheduled", "sending"]:
         violations.append(f"Campaign status is '{campaign.status}'. Mandatory Reviewer Approval is required before sending.")
         
