@@ -71,6 +71,7 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
   const [country, setCountry] = useState('');
   const [source, setSource] = useState('all');
   const [maxResults, setMaxResults] = useState(25);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const fetchJobsAndProviders = async () => {
     try {
@@ -143,11 +144,12 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) {
-      alert('Please enter any company name, industry, business category, or location');
+      setSearchError('Please enter any company name, industry, business category, or location');
       return;
     }
 
     const effectiveName = jobName.trim() || `${query.trim()} Leads Search`;
+    setSearchError(null);
 
     try {
       setSearching(true);
@@ -165,7 +167,8 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
       await fetchJobsAndProviders();
       handleOpenJobResultsPage(createdJob);
     } catch (err: any) {
-      alert(err.response?.data?.detail || err.message || 'Failed to search external sources');
+      const msg = err.response?.data?.detail || err.message || 'Unable to contact live external sources. The backend service may be waking up from sleep.';
+      setSearchError(msg);
     } finally {
       setSearching(false);
     }
@@ -174,6 +177,7 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
   const handleLoadDemoFallback = async (queryText: string) => {
     try {
       setSearching(true);
+      setSearchError(null);
       const demoJob = await api.createDiscoveryJob({
         job_name: `[DEMO DATA] ${queryText}`,
         source: 'demo',
@@ -186,7 +190,7 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
       await fetchJobsAndProviders();
       handleOpenJobResultsPage(demoJob);
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to load Demo Data');
+      setSearchError(err.response?.data?.detail || err.message || 'Failed to load Demo Data');
     } finally {
       setSearching(false);
     }
@@ -793,6 +797,44 @@ export const LeadDiscovery: React.FC<LeadDiscoveryProps> = ({ onNavigateToLeads 
           </div>
 
           <form onSubmit={handleCreateJob} className="space-y-4">
+            {searchError && (
+              <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Search Notice: </span>
+                      {searchError}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSearchError(null)}
+                    className="text-rose-400 hover:text-rose-700 font-bold text-sm leading-none cursor-pointer"
+                  >
+                    &times;
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={searching}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-md shadow-xs transition cursor-pointer"
+                  >
+                    Retry Live Search
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadDemoFallback(query.trim() || 'Business Leads')}
+                    disabled={searching}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-md shadow-xs transition cursor-pointer"
+                  >
+                    Load DEMO DATA Instead
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Search Name (Optional)</label>

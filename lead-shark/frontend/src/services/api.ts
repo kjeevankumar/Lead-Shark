@@ -8,6 +8,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const client = axios.create({
   baseURL: API_BASE,
+  timeout: 45000, // 45s budget for multi-provider live searches
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,6 +22,23 @@ client.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Humanize response errors (e.g. Render waking up, gateway timeouts, network drops)
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data?.detail) {
+      error.message = error.response.data.detail;
+    } else if (error.response?.data && typeof error.response.data === 'string' && error.response.data.includes('<html')) {
+      error.message = 'The backend server on Render is waking up from sleep. Please wait a moment and try again.';
+    } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      error.message = 'Search timed out while contacting live external sources. Please retry or load Demo Data.';
+    } else if (error.message === 'Network Error') {
+      error.message = 'Unable to connect to backend server. The service on Render may be waking up.';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const api = {
   // Health

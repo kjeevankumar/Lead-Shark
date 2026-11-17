@@ -171,5 +171,15 @@ def ensure_schema_columns():
                             wconn.execute(text(f"ALTER TABLE {tbl} ALTER COLUMN {col} TYPE {new_type}"))
                     except Exception as w_exc:
                         logger.debug(f"Column widen note {tbl}.{col}: {w_exc}")
+
+        # Mark any stale 'running' jobs as 'failed' if they were interrupted by a server restart or deploy
+        if "discovery_jobs" in existing_tables:
+            try:
+                with engine.begin() as cleanup_conn:
+                    cleanup_conn.execute(
+                        text("UPDATE discovery_jobs SET status = 'failed', error_message = 'Interrupted by server restart or deployment timeout' WHERE status = 'running'")
+                    )
+            except Exception as cl_exc:
+                logger.debug(f"Stale jobs cleanup note: {cl_exc}")
     except Exception as exc:
         logger.warning(f"Schema column migration notice: {exc}")
